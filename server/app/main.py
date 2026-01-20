@@ -3,9 +3,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import uuid
 
 from app.core.config import settings
 from app.core.database import check_database_connection
+from app.services.brain import brain_service
 
 # Configure logging
 logging.basicConfig(
@@ -54,6 +56,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Database connection: FAILED (running in mock mode)")
 
+    # Check OpenAI
+    if settings.OPENAI_API_KEY:
+        logger.info("OpenAI API: Configured")
+    else:
+        logger.warning("OpenAI API: NOT CONFIGURED (chat will use mock mode)")
+
     yield
 
     # Shutdown
@@ -87,7 +95,8 @@ async def health_check():
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "database": "connected" if db_status else "disconnected"
+        "database": "connected" if db_status else "disconnected",
+        "openai": "configured" if settings.OPENAI_API_KEY else "not_configured"
     }
 
 
@@ -108,17 +117,19 @@ async def api_info():
     }
 
 
-# WebSocket chat endpoint
+# WebSocket chat endpoint with Brain integration
 @app.websocket("/ws/chat/{client_id}")
 async def websocket_chat(websocket: WebSocket, client_id: str):
-    """WebSocket endpoint for real-time chat."""
+    """WebSocket endpoint for real-time chat with AI."""
     await manager.connect(websocket, client_id)
+    session_id = str(uuid.uuid4())
 
     try:
         # Send welcome message
         await manager.send_message(client_id, {
             "type": "system",
-            "content": "Connexion établie avec A.B.E.L. Comment puis-je vous aider?"
+            "content": "Connexion établie avec A.B.E.L. Comment puis-je vous aider?",
+            "session_id": session_id
         })
 
         while True:
@@ -127,24 +138,51 @@ async def websocket_chat(websocket: WebSocket, client_id: str):
 
             if data.get("type") == "message":
                 user_message = data.get("content", "")
+                user_id = data.get("user_id")
 
-                # Send acknowledgment
+                # Send thinking indicator
                 await manager.send_message(client_id, {
                     "type": "thinking",
                     "content": "Analyse en cours..."
                 })
 
-                # TODO: Process with Brain agent
-                # For now, echo back
-                response = f"[A.B.E.L] J'ai bien reçu: {user_message}"
+                # Check if OpenAI key is configured
+                if not settings.OPENAI_API_KEY:
+                    # Mock response if no API key
+                    await manager.send_message(client_id, {
+                        "type": "assistant",
+                        "content": f"[Mode Mock] J'ai bien reçu votre message: \"{user_message}\"\n\nPour activer les réponses IA, configurez OPENAI_API_KEY dans le fichier .env"
+                    })
+                else:
+                    # Stream response from Brain
+                    full_response = ""
+                    async for chunk in brain_service.stream_message(
+                        message=user_message,
+                        session_id=session_id,
+                        user_id=user_id
+                    ):
+                        full_response += chunk
+                        await manager.send_message(client_id, {
+                            "type": "stream",
+                            "content": chunk
+                        })
 
-                await manager.send_message(client_id, {
-                    "type": "assistant",
-                    "content": response
-                })
+                    # Send completion signal
+                    await manager.send_message(client_id, {
+                        "type": "assistant",
+                        "content": full_response,
+                        "complete": True
+                    })
 
             elif data.get("type") == "ping":
                 await manager.send_message(client_id, {"type": "pong"})
+
+            elif data.get("type") == "clear":
+                brain_service.clear_history(session_id)
+                await manager.send_message(client_id, {
+                    "type": "system",
+                    "content": "Historique de conversation effacé."
+                })
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)

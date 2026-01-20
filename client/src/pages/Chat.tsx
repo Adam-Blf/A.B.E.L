@@ -9,29 +9,31 @@ import {
   Bot,
   User,
   Sparkles,
-  Loader2
+  Loader2,
+  Wifi,
+  WifiOff,
+  Trash2
 } from 'lucide-react'
 import { GlassPanel, Button } from '@/components/ui'
 import { cn } from '@/utils/cn'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: Date
-}
+import { useAbelChat } from '@/hooks/useAbelChat'
 
 export default function Chat() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'system',
-      content: 'Bienvenue ! Je suis A.B.E.L, votre assistant personnel intelligent. Comment puis-je vous aider ?',
-      timestamp: new Date()
-    }
-  ])
+  const {
+    messages,
+    isConnected,
+    isThinking,
+    sendMessage,
+    clearHistory,
+    reconnect
+  } = useAbelChat({
+    url: `ws://localhost:8000/ws/chat/${Math.random().toString(36).substring(7)}`,
+    onConnect: () => console.log('Connected to A.B.E.L'),
+    onDisconnect: () => console.log('Disconnected from A.B.E.L'),
+    onError: (err) => console.error('WebSocket error:', err)
+  })
+
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -45,30 +47,9 @@ export default function Chat() {
   }, [messages])
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
+    if (!input.trim() || isThinking || !isConnected) return
+    sendMessage(input.trim())
     setInput('')
-    setIsLoading(true)
-
-    // Simulate API call - TODO: Connect to WebSocket
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `J'ai bien reçu votre message : "${userMessage.content}". Je suis en cours de configuration. Bientôt, je pourrai vous aider avec de nombreuses tâches !`,
-        timestamp: new Date()
-      }
-      setMessages(prev => [...prev, assistantMessage])
-      setIsLoading(false)
-    }, 1500)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,15 +82,34 @@ export default function Chat() {
             <div>
               <h1 className="font-semibold text-white">A.B.E.L</h1>
               <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
-                <span className="text-xs text-white/40">En ligne</span>
+                {isConnected ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-neon-green animate-pulse" />
+                    <span className="text-xs text-neon-green">Connecté</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    <span className="text-xs text-red-400">Déconnecté</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-neon-violet" />
-            <span className="text-xs text-white/40">GPT-4 Turbo</span>
+            <Button variant="ghost" size="sm" onClick={clearHistory} title="Effacer l'historique">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+            {!isConnected && (
+              <Button variant="ghost" size="sm" onClick={reconnect} title="Reconnecter">
+                <WifiOff className="w-4 h-4 text-red-400" />
+              </Button>
+            )}
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neon-violet/10">
+              <Sparkles className="w-4 h-4 text-neon-violet" />
+              <span className="text-xs text-neon-violet">GPT-4</span>
+            </div>
           </div>
         </div>
       </header>
@@ -117,6 +117,25 @@ export default function Chat() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto py-4 px-4">
         <div className="max-w-4xl mx-auto space-y-4">
+          {/* Welcome message if no messages */}
+          {messages.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-12"
+            >
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neon-cyan to-neon-violet mx-auto mb-6 flex items-center justify-center">
+                <Bot className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-2xl font-display font-bold text-white mb-2">
+                Bonjour, je suis A.B.E.L
+              </h2>
+              <p className="text-white/60 max-w-md mx-auto">
+                Votre assistant personnel intelligent. Posez-moi une question ou demandez-moi de l'aide.
+              </p>
+            </motion.div>
+          )}
+
           <AnimatePresence initial={false}>
             {messages.map((message) => (
               <motion.div
@@ -135,6 +154,8 @@ export default function Chat() {
                     'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
                     message.role === 'user'
                       ? 'bg-neon-violet/20 text-neon-violet'
+                      : message.role === 'system'
+                      ? 'bg-neon-orange/20 text-neon-orange'
                       : 'bg-neon-cyan/20 text-neon-cyan'
                   )}
                 >
@@ -151,12 +172,18 @@ export default function Chat() {
                     'max-w-[80%] p-4',
                     message.role === 'user'
                       ? 'bg-neon-violet/10 border-neon-violet/20'
-                      : 'bg-white/5'
+                      : message.role === 'system'
+                      ? 'bg-neon-orange/5 border-neon-orange/20'
+                      : 'bg-white/5',
+                    message.isStreaming && 'border-neon-cyan/30'
                   )}
                   hoverGlow={false}
                 >
                   <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap">
                     {message.content}
+                    {message.isStreaming && (
+                      <span className="inline-block w-2 h-4 bg-neon-cyan ml-1 animate-pulse" />
+                    )}
                   </p>
                   <p className="text-xs text-white/30 mt-2">
                     {message.timestamp.toLocaleTimeString('fr-FR', {
@@ -169,8 +196,8 @@ export default function Chat() {
             ))}
           </AnimatePresence>
 
-          {/* Loading indicator */}
-          {isLoading && (
+          {/* Thinking indicator */}
+          {isThinking && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -217,23 +244,33 @@ export default function Chat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Écrivez votre message..."
+              placeholder={isConnected ? "Écrivez votre message..." : "Connexion en cours..."}
               className="flex-1 bg-transparent border-none outline-none text-white placeholder-white/30 px-2"
-              disabled={isLoading}
+              disabled={isThinking || !isConnected}
             />
 
             <Button
               onClick={handleSend}
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() || isThinking || !isConnected}
               size="sm"
             >
               <Send className="w-5 h-5" />
             </Button>
           </GlassPanel>
 
-          <p className="text-center text-xs text-white/30 mt-2">
-            A.B.E.L peut faire des erreurs. Vérifiez les informations importantes.
-          </p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {isConnected ? (
+              <Wifi className="w-3 h-3 text-neon-green" />
+            ) : (
+              <WifiOff className="w-3 h-3 text-red-400" />
+            )}
+            <p className="text-xs text-white/30">
+              {isConnected
+                ? "A.B.E.L peut faire des erreurs. Vérifiez les informations importantes."
+                : "Tentative de connexion au serveur..."
+              }
+            </p>
+          </div>
         </div>
       </div>
     </div>
