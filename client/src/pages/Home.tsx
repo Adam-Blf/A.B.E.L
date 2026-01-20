@@ -10,7 +10,7 @@ import {
   Activity,
   Zap
 } from 'lucide-react'
-import { GlassPanel, Button, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
+import { GlassPanel, Button, Card, CardHeader, CardTitle } from '@/components/ui'
 
 export default function Home() {
   const stats = [

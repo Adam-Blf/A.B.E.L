@@ -3,12 +3,9 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
-  User,
   Palette,
   Bell,
-  Shield,
   Volume2,
-  Globe,
   Moon,
   Sun,
   Save,
