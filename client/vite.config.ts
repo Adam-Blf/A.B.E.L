@@ -93,15 +93,24 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: '0.0.0.0',      // ← Expose sur tout le réseau (accès iPhone/mobile)
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true
+        changeOrigin: true,
+        rewrite: (path) => path
       },
       '/ws': {
         target: 'ws://localhost:8000',
-        ws: true
+        ws: true,
+        changeOrigin: true
       }
     }
+  },
+  preview: {
+    port: 4173,
+    host: '0.0.0.0',      // ← Aussi en mode preview (build production)
+    strictPort: true
   }
 })

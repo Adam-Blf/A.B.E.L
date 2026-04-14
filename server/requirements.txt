@@ -10,28 +10,28 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 
 # Supabase
-supabase==2.11.0
-postgrest==0.17.0
+supabase>=2.11.0
+postgrest>=0.17.0
 
 # ─── LLM Core ─────────────────────────────────────────────────────────────
-langchain==0.3.14
-langchain-core==0.3.29
-langchain-community==0.3.14
+langchain>=0.3.14
+langchain-core>=0.3.29
+langchain-community>=0.3.14
 
 # ─── Open-source LLM Providers (gratuit) ──────────────────────────────────
 # Ollama : modèles locaux (Llama 3.2, Mistral, Phi-3, Gemma 2, DeepSeek...)
-langchain-ollama==0.2.3
+langchain-ollama>=0.2.3
 
 # Groq : cloud gratuit ultra-rapide (14 400 req/j sur Llama 3.3 70B)
-langchain-groq==0.2.4
+langchain-groq>=0.2.4
 
 # ─── OpenAI (optionnel, payant) ────────────────────────────────────────────
-langchain-openai==0.2.14
-openai==1.59.0
-tiktoken==0.8.0
+langchain-openai>=0.2.14
+openai>=1.55.0
+tiktoken>=0.8.0
 
 # ─── Agent Tools ──────────────────────────────────────────────────────────
-duckduckgo-search==7.3.2    # Recherche web gratuite (pas de clé API)
+duckduckgo-search>=7.3.2   # Recherche web gratuite (pas de clé API)
 
 # HTTP Client
 httpx==0.28.1
