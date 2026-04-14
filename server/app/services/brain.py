@@ -2,10 +2,10 @@
 A.B.E.L Brain Service - LLM Orchestration with LangChain
 """
 import logging
+from datetime import datetime
 from typing import AsyncGenerator, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from app.core.config import settings
 from .memory import memory_service
@@ -13,27 +13,61 @@ from .memory import memory_service
 logger = logging.getLogger("abel.brain")
 
 
-ABEL_SYSTEM_PROMPT = """Tu es A.B.E.L (Adam Beloucif Est Là), un assistant personnel intelligent avec une personnalité unique.
+def _build_system_prompt(context: str = "") -> str:
+    now = datetime.now()
+    date_str = now.strftime("%A %d %B %Y")
+    time_str = now.strftime("%H:%M")
 
-PERSONNALITÉ:
-- Tu es professionnel mais amical, avec un léger côté cyberpunk
-- Tu réponds toujours en français sauf si l'utilisateur te parle dans une autre langue
-- Tu es proactif et anticipe les besoins de l'utilisateur
-- Tu as accès à plus de 1400 APIs publiques pour aider l'utilisateur
+    return f"""Tu es A.B.E.L (Adam Beloucif Est Là), l'assistant personnel intelligent d'Adam Beloucif.
 
-CAPACITÉS:
-- Chat conversationnel intelligent
-- Recherche d'informations via APIs publiques
-- Gestion de la mémoire à long terme (RAG)
-- Synthèse vocale (TTS)
+═══════════════════════════════════════════
+IDENTITÉ
+═══════════════════════════════════════════
+- Tu es un assistant cyberpunk ultra-compétent, style Jarvis d'Iron Man
+- Tu es loyal, proactif, précis et légèrement sarcastique de manière élégante
+- Tu parles toujours en français par défaut, sauf si l'utilisateur change de langue
+- Tu tututoies Adam et vouvoies les autres utilisateurs par défaut
 
-RÈGLES:
-- Sois concis mais informatif
-- Utilise des emojis avec parcimonie pour ajouter de la personnalité
-- Si tu ne sais pas quelque chose, admets-le honnêtement
-- Rappelle-toi du contexte des conversations précédentes quand c'est pertinent
+═══════════════════════════════════════════
+CONTEXTE ACTUEL
+═══════════════════════════════════════════
+- Date : {date_str}
+- Heure : {time_str}
+- Mode : Système opérationnel{' avec mémoire RAG active' if context else ''}
 
-{context}"""
+═══════════════════════════════════════════
+CAPACITÉS
+═══════════════════════════════════════════
+- 💬 Chat conversationnel intelligent avec mémoire de contexte
+- 🧠 Mémorisation long-terme (RAG avec pgvector)
+- 🌐 Accès potentiel à +1400 APIs publiques
+- 💻 Aide au code (Python, TypeScript, React, FastAPI, SQL...)
+- 📊 Analyse de données et génération de rapports
+- 🎵 Intégration Deezer (musique)
+- 🔒 Sécurité et chiffrement
+
+═══════════════════════════════════════════
+FORMAT DE RÉPONSE
+═══════════════════════════════════════════
+- Utilise du **Markdown** : gras, listes, blocs de code, tableaux
+- Pour le code : toujours avec les backticks et le langage (```python, ```typescript...)
+- Sois concis mais complet - pas de padding inutile
+- Utilise des emojis avec parcimonie pour structurer (pas pour décorer)
+- Pour les listes longues : utilise des tableaux markdown quand c'est pertinent
+
+═══════════════════════════════════════════
+RÈGLES
+═══════════════════════════════════════════
+1. Si tu ne sais pas, dis-le clairement - pas d'hallucinations
+2. Cite tes sources quand tu fais des affirmations factuelles
+3. Pour le code : teste mentalement avant de répondre
+4. Rappelle le contexte des échanges précédents quand c'est pertinent
+5. Pour les tâches complexes : décompose en étapes claires{f'''
+
+═══════════════════════════════════════════
+MÉMOIRE CONTEXTUELLE
+═══════════════════════════════════════════
+{context}''' if context else ''}"""
 
 
 class BrainService:
@@ -51,27 +85,26 @@ class BrainService:
                 model=settings.OPENAI_MODEL,
                 api_key=settings.OPENAI_API_KEY,
                 temperature=0.7,
-                streaming=True
+                streaming=True,
+                max_tokens=4096
             )
         return self._llm
 
     def _get_history(self, session_id: str) -> list:
-        """Get conversation history for a session."""
         if session_id not in self.conversation_history:
             self.conversation_history[session_id] = []
         return self.conversation_history[session_id]
 
     def _add_to_history(self, session_id: str, role: str, content: str):
-        """Add message to conversation history."""
         history = self._get_history(session_id)
         if role == "user":
             history.append(HumanMessage(content=content))
         elif role == "assistant":
             history.append(AIMessage(content=content))
 
-        # Keep only last 20 messages
-        if len(history) > 20:
-            self.conversation_history[session_id] = history[-20:]
+        # Keep last 30 messages (15 exchanges)
+        if len(history) > 30:
+            self.conversation_history[session_id] = history[-30:]
 
     async def process_message(
         self,
@@ -79,53 +112,37 @@ class BrainService:
         session_id: str,
         user_id: Optional[str] = None
     ) -> str:
-        """Process a user message and return response."""
+        """Process a user message and return full response."""
         try:
-            # Get relevant context from memory
             context = ""
             if user_id:
                 context = await memory_service.get_context_for_chat(
-                    query=message,
-                    user_id=user_id
+                    query=message, user_id=user_id
                 )
 
-            # Build system message with context
-            system_content = ABEL_SYSTEM_PROMPT.format(
-                context=f"\nCONTEXTE MÉMOIRE:\n{context}" if context else ""
-            )
-
-            # Get conversation history
+            system_content = _build_system_prompt(context)
             history = self._get_history(session_id)
+            messages = [SystemMessage(content=system_content), *history, HumanMessage(content=message)]
 
-            # Build messages
-            messages = [
-                SystemMessage(content=system_content),
-                *history,
-                HumanMessage(content=message)
-            ]
-
-            # Get response from LLM
             response = await self.llm.ainvoke(messages)
             response_text = response.content
 
-            # Add to history
             self._add_to_history(session_id, "user", message)
             self._add_to_history(session_id, "assistant", response_text)
 
-            # Store in long-term memory if meaningful
             if user_id and len(message) > 20:
                 await memory_service.store_memory(
                     user_id=user_id,
-                    content=f"User: {message}\nAbel: {response_text[:200]}...",
+                    content=f"User: {message}\nAbel: {response_text[:300]}",
                     metadata={"session_id": session_id, "type": "conversation"},
-                    importance=0.3
+                    importance=0.4
                 )
 
             return response_text
 
         except Exception as e:
             logger.error(f"Brain processing error: {e}")
-            return f"Désolé, j'ai rencontré une erreur: {str(e)}"
+            return f"❌ Erreur lors du traitement : {str(e)}"
 
     async def stream_message(
         self,
@@ -135,49 +152,36 @@ class BrainService:
     ) -> AsyncGenerator[str, None]:
         """Stream response chunks for real-time display."""
         try:
-            # Get relevant context from memory
             context = ""
             if user_id:
                 context = await memory_service.get_context_for_chat(
-                    query=message,
-                    user_id=user_id
+                    query=message, user_id=user_id
                 )
 
-            # Build system message with context
-            system_content = ABEL_SYSTEM_PROMPT.format(
-                context=f"\nCONTEXTE MÉMOIRE:\n{context}" if context else ""
-            )
-
-            # Get conversation history
+            system_content = _build_system_prompt(context)
             history = self._get_history(session_id)
+            messages = [SystemMessage(content=system_content), *history, HumanMessage(content=message)]
 
-            # Build messages
-            messages = [
-                SystemMessage(content=system_content),
-                *history,
-                HumanMessage(content=message)
-            ]
-
-            # Stream response from LLM
             full_response = ""
             async for chunk in self.llm.astream(messages):
                 if chunk.content:
                     full_response += chunk.content
                     yield chunk.content
 
-            # Add to history after complete
             self._add_to_history(session_id, "user", message)
             self._add_to_history(session_id, "assistant", full_response)
 
         except Exception as e:
             logger.error(f"Brain streaming error: {e}")
-            yield f"Erreur: {str(e)}"
+            yield f"❌ Erreur: {str(e)}"
 
     def clear_history(self, session_id: str):
-        """Clear conversation history for a session."""
         if session_id in self.conversation_history:
             del self.conversation_history[session_id]
             logger.info(f"History cleared for session {session_id}")
+
+    def get_session_count(self) -> int:
+        return len(self.conversation_history)
 
 
 # Singleton instance
