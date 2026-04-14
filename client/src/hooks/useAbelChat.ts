@@ -20,6 +20,8 @@ interface UseAbelChatReturn {
   messages: Message[]
   isConnected: boolean
   isThinking: boolean
+  activeModel: string
+  activeProvider: string
   sendMessage: (content: string) => void
   clearHistory: () => void
   reconnect: () => void
@@ -49,6 +51,8 @@ export function useAbelChat(options: UseAbelChatOptions = {}): UseAbelChatReturn
   const [messages, setMessages] = useState<Message[]>([])
   const [isConnected, setIsConnected] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+  const [activeModel, setActiveModel] = useState('—')
+  const [activeProvider, setActiveProvider] = useState('unknown')
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
@@ -100,6 +104,9 @@ export function useAbelChat(options: UseAbelChatOptions = {}): UseAbelChatReturn
   const handleServerMessage = useCallback((data: Record<string, unknown>) => {
     switch (data.type) {
       case 'system': {
+        // Capture model info from connection message
+        if (data.model) setActiveModel(data.model as string)
+        if (data.provider) setActiveProvider(data.provider as string)
         const msg: Message = {
           id: generateId(),
           role: 'system',
@@ -234,6 +241,8 @@ export function useAbelChat(options: UseAbelChatOptions = {}): UseAbelChatReturn
     messages,
     isConnected,
     isThinking,
+    activeModel,
+    activeProvider,
     sendMessage,
     clearHistory,
     reconnect,

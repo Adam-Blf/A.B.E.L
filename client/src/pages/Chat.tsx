@@ -60,6 +60,8 @@ export default function Chat() {
     messages,
     isConnected,
     isThinking,
+    activeModel,
+    activeProvider,
     sendMessage,
     clearHistory,
     reconnect,
@@ -253,9 +255,15 @@ export default function Chat() {
               </Button>
             )}
 
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-neon-violet/10 border border-neon-violet/20">
-              <Sparkles className="w-3 h-3 text-neon-violet" />
-              <span className="text-xs text-neon-violet font-mono">GPT-4</span>
+            <div className={cn(
+              'flex items-center gap-1.5 px-2 py-1 rounded-lg border font-mono text-xs',
+              activeProvider === 'ollama' ? 'bg-neon-green/10 border-neon-green/30 text-neon-green' :
+              activeProvider === 'groq'   ? 'bg-neon-orange/10 border-neon-orange/30 text-neon-orange' :
+              activeProvider === 'openai' ? 'bg-neon-violet/10 border-neon-violet/30 text-neon-violet' :
+                                           'bg-white/5 border-white/10 text-white/40'
+            )}>
+              <Sparkles className="w-3 h-3" />
+              <span>{activeModel !== '—' ? activeModel.split(':')[0] : 'Simulation'}</span>
             </div>
           </div>
         </div>

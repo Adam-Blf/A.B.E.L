@@ -78,6 +78,15 @@ export function CommandPalette({ onClearChat }: CommandPaletteProps) {
       category: 'Navigation',
     },
     {
+      id: 'nav-models',
+      label: 'Modèles LLM',
+      description: 'Ollama, Groq, OpenAI — config',
+      icon: <Zap className="w-4 h-4 text-neon-green" />,
+      action: () => { navigate('/models'); close() },
+      keywords: ['models', 'modèles', 'llm', 'ollama', 'groq', 'openai', 'ia', 'ml'],
+      category: 'Navigation',
+    },
+    {
       id: 'nav-system',
       label: 'Système',
       description: 'Documentation & statut',

@@ -194,6 +194,7 @@ export default function Home() {
 
   const quickActions = [
     { label: 'Chat', icon: MessageSquare, href: '/chat', description: 'Parler avec A.B.E.L', color: 'text-neon-cyan', bg: 'bg-neon-cyan/10 group-hover:bg-neon-cyan/20' },
+    { label: 'Modèles', icon: Cpu, href: '/models', description: 'LLM open-source & config', color: 'text-neon-green', bg: 'bg-neon-green/10 group-hover:bg-neon-green/20' },
     { label: 'Système', icon: FileText, href: '/system', description: 'Documentation & statut', color: 'text-neon-violet', bg: 'bg-neon-violet/10 group-hover:bg-neon-violet/20' },
     { label: 'Paramètres', icon: Settings, href: '/settings', description: 'Personnalisation', color: 'text-neon-orange', bg: 'bg-neon-orange/10 group-hover:bg-neon-orange/20' },
   ]

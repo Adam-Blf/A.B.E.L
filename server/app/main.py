@@ -4,30 +4,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pathlib import Path
 import logging
-import uuid
 import time
-import os
+import httpx
 
 from app.core.config import settings
 from app.core.database import check_database_connection
 from app.services.brain import brain_service
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger("abel")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-# Track server start time
 SERVER_START_TIME = time.time()
-
-# Paths
 ROOT_DIR = Path(__file__).parent.parent.parent
 DOCS_DIR = ROOT_DIR / "docs"
 
 
-# WebSocket connection manager
+# ─── Connection Manager ────────────────────────────────────────────────────────
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -36,16 +29,15 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        logger.info(f"Client {client_id} connected. Total: {len(self.active_connections)}")
+        logger.info(f"Client {client_id[:12]}... connected ({len(self.active_connections)} total)")
 
     def disconnect(self, client_id: str):
-        if client_id in self.active_connections:
-            del self.active_connections[client_id]
-            logger.info(f"Client {client_id} disconnected. Total: {len(self.active_connections)}")
+        self.active_connections.pop(client_id, None)
 
-    async def send_message(self, client_id: str, message: dict):
-        if client_id in self.active_connections:
-            await self.active_connections[client_id].send_json(message)
+    async def send(self, client_id: str, message: dict):
+        ws = self.active_connections.get(client_id)
+        if ws:
+            await ws.send_json(message)
 
     def increment_messages(self):
         self.message_count += 1
@@ -54,39 +46,40 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# ─── Lifespan ──────────────────────────────────────────────────────────────────
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler."""
-    logger.info("=" * 50)
-    logger.info("  A.B.E.L - Adam Beloucif Est Là")
+    logger.info("=" * 60)
+    logger.info("  A.B.E.L — Adam Beloucif Est Là")
     logger.info(f"  Version: {settings.APP_VERSION}")
-    logger.info("=" * 50)
+    logger.info("=" * 60)
+
+    # Initialize brain (LLM provider detection)
+    await brain_service.initialize()
+    info = brain_service.get_info()
+    logger.info(f"  LLM Provider : {info['provider'].upper()} ({info['model']})")
+    logger.info(f"  Ollama       : {'✅' if info['ollama_available'] else '❌'}")
+    logger.info(f"  Groq         : {'✅' if info['groq_configured'] else '❌'}")
+    logger.info(f"  OpenAI       : {'✅' if info['openai_configured'] else '❌'}")
 
     db_ok = await check_database_connection()
-    if db_ok:
-        logger.info("Database connection: OK")
-    else:
-        logger.warning("Database connection: FAILED (running in mock mode)")
-
-    if settings.OPENAI_API_KEY:
-        logger.info("OpenAI API: Configured")
-    else:
-        logger.warning("OpenAI API: NOT CONFIGURED (chat will use mock mode)")
+    logger.info(f"  Database     : {'✅' if db_ok else '❌ (mock mode)'}")
+    logger.info("=" * 60)
 
     yield
-
     logger.info("Shutting down A.B.E.L...")
 
 
-# Create FastAPI app
+# ─── App ───────────────────────────────────────────────────────────────────────
+
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Adam Beloucif Est Là - Assistant Personnel Intelligent",
+    description="Adam Beloucif Est Là — Assistant Personnel Intelligent",
     version=settings.APP_VERSION,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -96,105 +89,128 @@ app.add_middleware(
 )
 
 
-# ============================================================
-# Health & Status Endpoints
-# ============================================================
+# ─── Health & Status ───────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    db_status = await check_database_connection()
+    db_ok = await check_database_connection()
+    info = brain_service.get_info()
     return {
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "database": "connected" if db_status else "disconnected",
-        "openai": "configured" if settings.OPENAI_API_KEY else "not_configured"
+        "llm": info["provider"],
+        "model": info["model"],
+        "database": "connected" if db_ok else "disconnected",
     }
 
 
 @app.get("/api/status")
 async def system_status():
-    """Detailed system status for the dashboard."""
-    uptime_seconds = time.time() - SERVER_START_TIME
+    uptime_s = time.time() - SERVER_START_TIME
+    h, m, s = int(uptime_s // 3600), int((uptime_s % 3600) // 60), int(uptime_s % 60)
     db_ok = await check_database_connection()
-
-    hours = int(uptime_seconds // 3600)
-    minutes = int((uptime_seconds % 3600) // 60)
-    seconds = int(uptime_seconds % 60)
+    info = brain_service.get_info()
 
     return {
         "status": "online",
         "version": settings.APP_VERSION,
-        "uptime": {
-            "seconds": int(uptime_seconds),
-            "formatted": f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-        },
-        "connections": {
-            "active": len(manager.active_connections),
-            "total_messages": manager.message_count
-        },
-        "sessions": {
-            "active": len(brain_service.conversation_history)
-        },
+        "uptime": {"seconds": int(uptime_s), "formatted": f"{h:02d}:{m:02d}:{s:02d}"},
+        "connections": {"active": len(manager.active_connections), "total_messages": manager.message_count},
+        "sessions": {"active": brain_service.get_session_count()},
         "services": {
-            "llm": {
-                "status": "active" if settings.OPENAI_API_KEY else "mock",
-                "model": settings.OPENAI_MODEL if settings.OPENAI_API_KEY else "mock-mode"
-            },
-            "database": {
-                "status": "active" if db_ok else "offline"
-            },
-            "memory": {
-                "status": "active" if settings.OPENAI_API_KEY else "mock"
-            }
-        }
+            "llm": {"status": info["provider"] if info["provider"] != "mock" else "mock", "model": info["model"]},
+            "database": {"status": "active" if db_ok else "offline"},
+            "memory": {"status": "active" if db_ok and info["provider"] != "mock" else "mock"},
+        },
     }
 
 
 @app.get("/api/info")
 async def api_info():
-    """Get API information."""
+    info = brain_service.get_info()
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
-        "description": "Adam Beloucif Est Là - Assistant Personnel Intelligent",
+        "llm": info,
         "endpoints": {
             "health": "/health",
             "status": "/api/status",
+            "models": "/api/models",
             "chat": "/ws/chat/{client_id}",
             "docs": "/api/docs",
-            "doc": "/api/docs/{doc_id}"
-        }
+        },
     }
 
 
-# ============================================================
-# Documentation Endpoints
-# ============================================================
+# ─── Models ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/models")
+async def list_models():
+    """Liste les modèles Ollama disponibles + modèles Groq recommandés."""
+    result = {
+        "active": brain_service.get_info(),
+        "ollama": {"available": False, "models": []},
+        "groq": {
+            "available": settings.has_groq,
+            "models": [
+                {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B", "recommended": True},
+                {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B (rapide)", "recommended": False},
+                {"id": "mixtral-8x7b-32768", "name": "Mixtral 8x7B", "recommended": False},
+                {"id": "gemma2-9b-it", "name": "Gemma 2 9B", "recommended": False},
+                {"id": "deepseek-r1-distill-llama-70b", "name": "DeepSeek R1 70B", "recommended": False},
+            ],
+        },
+        "openai": {
+            "available": settings.has_openai,
+            "models": [
+                {"id": "gpt-4o-mini", "name": "GPT-4o Mini (rapide)"},
+                {"id": "gpt-4o", "name": "GPT-4o"},
+            ],
+        },
+    }
+
+    # Check Ollama models
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            r = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
+            if r.status_code == 200:
+                data = r.json()
+                result["ollama"]["available"] = True
+                result["ollama"]["models"] = [
+                    {
+                        "id": m["name"],
+                        "name": m["name"],
+                        "size": m.get("size", 0),
+                        "modified": m.get("modified_at", ""),
+                    }
+                    for m in data.get("models", [])
+                ]
+    except Exception:
+        pass
+
+    return result
+
+
+# ─── Documentation ─────────────────────────────────────────────────────────────
 
 @app.get("/api/docs")
 async def list_docs():
-    """List available documentation files."""
     doc_list = []
-
-    # Add root-level markdown files
     root_docs = [
         {"id": "README", "title": "README", "description": "Installation et démarrage rapide"},
-        {"id": "CLAUDE", "title": "CLAUDE.md", "description": "Instructions pour Claude Code"},
+        {"id": "CLAUDE", "title": "CLAUDE.md", "description": "Instructions Claude Code"},
     ]
     for doc in root_docs:
-        p = ROOT_DIR / f"{doc['id']}.md"
-        if p.exists():
+        if (ROOT_DIR / f"{doc['id']}.md").exists():
             doc_list.append(doc)
 
-    # Add docs folder files
     if DOCS_DIR.exists():
         for f in sorted(DOCS_DIR.glob("*.md")):
             doc_list.append({
                 "id": f.stem,
                 "title": f.stem.replace("_", " ").title(),
-                "description": f"Documentation: {f.stem.replace('_', ' ')}"
+                "description": f"Documentation: {f.stem.replace('_', ' ')}",
             })
 
     return {"docs": doc_list}
@@ -202,47 +218,40 @@ async def list_docs():
 
 @app.get("/api/docs/{doc_id}")
 async def get_doc(doc_id: str):
-    """Serve a markdown document by ID."""
-    # Security: prevent path traversal
-    safe_id = doc_id.replace("/", "").replace("..", "").replace("\\", "")
-
-    # Try docs folder first
+    safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "", doc_id)
     candidates = [
         DOCS_DIR / f"{safe_id}.md",
         DOCS_DIR / f"{safe_id.upper()}.md",
         ROOT_DIR / f"{safe_id}.md",
         ROOT_DIR / f"{safe_id.upper()}.md",
     ]
-
-    for candidate in candidates:
-        if candidate.exists() and candidate.is_file():
-            content = candidate.read_text(encoding="utf-8")
-            return {
-                "id": doc_id,
-                "title": safe_id.replace("_", " ").title(),
-                "content": content,
-                "size": len(content)
-            }
-
-    raise HTTPException(status_code=404, detail=f"Document '{doc_id}' not found")
+    for c in candidates:
+        if c.exists() and c.is_file():
+            content = c.read_text(encoding="utf-8")
+            return {"id": doc_id, "title": safe_id.replace("_", " ").title(), "content": content}
+    raise HTTPException(status_code=404, detail=f"Document '{doc_id}' non trouvé")
 
 
-# ============================================================
-# WebSocket Chat Endpoint
-# ============================================================
+import re  # noqa: E402
+
+
+# ─── WebSocket Chat ────────────────────────────────────────────────────────────
 
 @app.websocket("/ws/chat/{client_id}")
 async def websocket_chat(websocket: WebSocket, client_id: str):
-    """WebSocket endpoint for real-time chat with AI."""
     await manager.connect(websocket, client_id)
-    session_id = client_id  # Use client_id as session_id for persistence
+    session_id = client_id  # persistent session
+
+    llm_info = brain_service.get_info()
+    provider_label = llm_info["model"]
 
     try:
-        # Send welcome message
-        await manager.send_message(client_id, {
+        await manager.send(client_id, {
             "type": "system",
-            "content": "Connexion établie avec A.B.E.L. Comment puis-je vous aider?",
-            "session_id": session_id
+            "content": f"Connexion établie avec A.B.E.L. Modèle actif : **{provider_label}**. Comment puis-je vous aider ?",
+            "session_id": session_id,
+            "model": provider_label,
+            "provider": llm_info["provider"],
         })
 
         while True:
@@ -250,126 +259,67 @@ async def websocket_chat(websocket: WebSocket, client_id: str):
 
             if data.get("type") == "message":
                 user_message = data.get("content", "").strip()
-                user_id = data.get("user_id")
-
                 if not user_message:
                     continue
 
                 manager.increment_messages()
 
-                # Send thinking indicator
-                await manager.send_message(client_id, {
+                await manager.send(client_id, {
                     "type": "thinking",
                     "content": "Analyse en cours..."
                 })
 
-                if not settings.OPENAI_API_KEY:
-                    # Smart mock responses
-                    mock = _get_mock_response(user_message)
-                    await manager.send_message(client_id, {
-                        "type": "assistant",
-                        "content": mock,
-                        "complete": True
-                    })
-                else:
-                    # Stream response from Brain
-                    full_response = ""
-                    async for chunk in brain_service.stream_message(
-                        message=user_message,
-                        session_id=session_id,
-                        user_id=user_id
-                    ):
-                        full_response += chunk
-                        await manager.send_message(client_id, {
-                            "type": "stream",
-                            "content": chunk
-                        })
+                full_response = ""
+                async for chunk in brain_service.stream_message(
+                    message=user_message,
+                    session_id=session_id,
+                    user_id=data.get("user_id"),
+                ):
+                    full_response += chunk
+                    await manager.send(client_id, {"type": "stream", "content": chunk})
 
-                    # Send completion signal
-                    await manager.send_message(client_id, {
-                        "type": "assistant",
-                        "content": full_response,
-                        "complete": True
-                    })
+                await manager.send(client_id, {
+                    "type": "assistant",
+                    "content": full_response,
+                    "complete": True,
+                })
 
             elif data.get("type") == "ping":
-                await manager.send_message(client_id, {
-                    "type": "pong",
-                    "timestamp": time.time()
-                })
+                await manager.send(client_id, {"type": "pong", "timestamp": time.time()})
 
             elif data.get("type") == "clear":
                 brain_service.clear_history(session_id)
-                await manager.send_message(client_id, {
+                await manager.send(client_id, {
                     "type": "system",
-                    "content": "Historique effacé. Nouvelle conversation initialisée."
+                    "content": "Historique effacé. Nouvelle conversation initialisée.",
                 })
 
             elif data.get("type") == "status":
-                await manager.send_message(client_id, {
+                info = brain_service.get_info()
+                await manager.send(client_id, {
                     "type": "status",
                     "connected": True,
                     "session_id": session_id,
-                    "llm": "active" if settings.OPENAI_API_KEY else "mock"
+                    **info,
                 })
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
-        logger.error(f"WebSocket error for {client_id}: {e}")
+        logger.error(f"WebSocket error ({client_id[:12]}): {e}")
         manager.disconnect(client_id)
 
 
-def _get_mock_response(message: str) -> str:
-    """Generate intelligent mock responses when no OpenAI key is configured."""
-    msg_lower = message.lower()
+# ─── Root ──────────────────────────────────────────────────────────────────────
 
-    if any(w in msg_lower for w in ["bonjour", "salut", "hello", "hi"]):
-        return "Bonjour ! Je suis A.B.E.L, votre assistant personnel. Je fonctionne en mode simulation (sans clé OpenAI). Pour activer l'IA complète, configurez `OPENAI_API_KEY` dans le fichier `.env` du serveur."
-
-    if any(w in msg_lower for w in ["heure", "time", "quelle heure"]):
-        from datetime import datetime
-        now = datetime.now().strftime("%H:%M:%S")
-        return f"Il est actuellement **{now}**."
-
-    if any(w in msg_lower for w in ["aide", "help", "commandes"]):
-        return """Je peux vous aider avec :
-
-- 💬 **Conversation** : Posez-moi vos questions
-- 🔧 **Code** : Aide au développement
-- 📊 **Analyse** : Traitement de données
-- 🌐 **APIs** : Accès à +1400 APIs publiques
-
-Pour activer l'IA complète, configurez votre clé OpenAI."""
-
-    if any(w in msg_lower for w in ["statut", "status", "état"]):
-        uptime = time.time() - SERVER_START_TIME
-        return f"""**Statut du système A.B.E.L :**
-
-- 🟢 Serveur : En ligne ({int(uptime)}s uptime)
-- 🟡 IA : Mode simulation (clé OpenAI manquante)
-- 🔵 WebSocket : Connecté
-- ⚡ Sessions actives : {len(brain_service.conversation_history)}"""
-
-    if any(w in msg_lower for w in ["merci", "thanks"]):
-        return "Avec plaisir ! N'hésitez pas si vous avez d'autres questions. 🚀"
-
-    return f"""[Mode Simulation] J'ai bien reçu : *"{message}"*
-
-Pour des réponses IA réelles, configurez `OPENAI_API_KEY` dans `server/.env`.
-
-En attendant, je peux répondre à des questions basiques sur l'heure, le statut du système, ou l'aide générale."""
-
-
-# Root endpoint
 @app.get("/")
 async def root():
-    """Root endpoint."""
     return JSONResponse({
-        "message": "A.B.E.L - Adam Beloucif Est Là",
+        "message": "A.B.E.L — Adam Beloucif Est Là",
         "status": "online",
         "version": settings.APP_VERSION,
-        "docs": "/docs"
+        "llm": brain_service.get_info()["provider"],
+        "docs": "/docs",
     })
 
 

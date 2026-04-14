@@ -11,6 +11,7 @@ const Home = lazy(() => import('@/pages/Home'))
 const Chat = lazy(() => import('@/pages/Chat'))
 const System = lazy(() => import('@/pages/System'))
 const Settings = lazy(() => import('@/pages/Settings'))
+const Models = lazy(() => import('@/pages/Models'))
 
 // Loading fallback with HUD style
 function LoadingFallback() {
@@ -149,6 +150,14 @@ function App() {
               element={
                 <PageTransition>
                   <Settings />
+                </PageTransition>
+              }
+            />
+            <Route
+              path="/models"
+              element={
+                <PageTransition>
+                  <Models />
                 </PageTransition>
               }
             />
