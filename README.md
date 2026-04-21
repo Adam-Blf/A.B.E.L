@@ -1,8 +1,11 @@
 # A.B.E.L - Adam Beloucif Est Là
 
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
-![PWA](https://img.shields.io/badge/PWA-ready-00f5ff)
-![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-wip-yellow)
+![React](https://img.shields.io/badge/React_18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white)
 
 > **Assistant Personnel Intelligent** - Interface Cyberpunk PWA avec Chat AI, Mémoire RAG & Proxy API Universel
 
