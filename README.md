@@ -14,6 +14,31 @@
 
 > **Assistant Personnel Intelligent** - Interface Cyberpunk PWA avec Chat AI, Mémoire RAG & Proxy API Universel
 
+## Architecture
+
+```mermaid
+flowchart TB
+    PWA["Client React 18 + Vite 6<br/>PWA · Workbox · TypeScript strict"]
+    PAGES["Pages<br/>Intro HUD · Home · Chat · System · Settings"]
+    STORE["État Zustand<br/>hooks/useAbelChat.ts · stores"]
+    API["Backend FastAPI<br/>server/app/main.py · endpoints api/"]
+    CORE["Core<br/>core/config.py · core/database.py"]
+    BRAIN["Service Brain<br/>services/brain.py · orchestration LLM"]
+    MEM["Service Memory<br/>services/memory.py · RAG"]
+    DB["Supabase + pgvector<br/>mémoire vectorielle"]
+    LLM["LangChain + OpenAI<br/>génération réponses"]
+
+    PWA --> PAGES
+    PAGES --> STORE
+    STORE -->|WebSocket / HTTP| API
+    API --> CORE
+    API --> BRAIN
+    BRAIN --> MEM
+    MEM --> DB
+    CORE --> DB
+    BRAIN --> LLM
+```
+
 ## Features
 
 - [x] PWA installable (iOS, Android, Desktop)
