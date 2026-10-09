@@ -1,7 +1,7 @@
 import { motion, type HTMLMotionProps } from 'framer-motion'
 import { cn } from '@/utils/cn'
 import { forwardRef } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader } from "reicon-react";
 
 interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -44,7 +44,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader className="w-4 h-4 animate-spin" />
         ) : icon ? (
           icon
         ) : null}

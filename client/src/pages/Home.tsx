@@ -1,15 +1,6 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import {
-  MessageSquare,
-  Settings,
-  FileText,
-  Cpu,
-  Wifi,
-  Shield,
-  Activity,
-  Zap
-} from 'lucide-react'
+import { Bolt, Cpu, FileText, Gear, Message, Shield, WavePulse, Wifi } from "reicon-react";
 import { GlassPanel, Button, Card, CardHeader, CardTitle } from '@/components/ui'
 
 export default function Home() {
@@ -17,13 +8,13 @@ export default function Home() {
     { label: 'Connexion', value: 'Active', icon: Wifi, color: 'text-neon-green' },
     { label: 'Statut IA', value: 'Prêt', icon: Cpu, color: 'text-neon-cyan' },
     { label: 'Sécurité', value: 'Optimal', icon: Shield, color: 'text-neon-violet' },
-    { label: 'APIs', value: '1,400+', icon: Zap, color: 'text-neon-orange' },
+    { label: 'APIs', value: '1,400+', icon: Bolt, color: 'text-neon-orange' },
   ]
 
   const quickActions = [
-    { label: 'Chat', icon: MessageSquare, href: '/chat', description: 'Parler avec A.B.E.L' },
+    { label: 'Chat', icon: Message, href: '/chat', description: 'Parler avec A.B.E.L' },
     { label: 'Système', icon: FileText, href: '/system', description: 'Documentation' },
-    { label: 'Paramètres', icon: Settings, href: '/settings', description: 'Configuration' },
+    { label: 'Paramètres', icon: Gear, href: '/settings', description: 'Configuration' },
   ]
 
   return (
@@ -102,7 +93,7 @@ export default function Home() {
           className="mb-8"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-neon-cyan" />
+            <WavePulse className="w-5 h-5 text-neon-cyan" />
             Actions Rapides
           </h3>
 
@@ -141,7 +132,7 @@ export default function Home() {
           <GlassPanel className="p-8 text-center neon-border" neonBorder>
             <div className="max-w-md mx-auto">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-cyan to-neon-violet mx-auto mb-4 flex items-center justify-center">
-                <MessageSquare className="w-8 h-8 text-white" />
+                <Message className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-2xl font-display font-bold text-white mb-2">
                 Commencer une conversation
@@ -151,7 +142,7 @@ export default function Home() {
               </p>
               <Link to="/chat">
                 <Button size="lg" className="min-w-[200px]">
-                  <MessageSquare className="w-5 h-5" />
+                  <Message className="w-5 h-5" />
                   Ouvrir le Chat
                 </Button>
               </Link>

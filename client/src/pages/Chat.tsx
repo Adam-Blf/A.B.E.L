@@ -1,19 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import {
-  Send,
-  ArrowLeft,
-  Mic,
-  MicOff,
-  Bot,
-  User,
-  Sparkles,
-  Loader2,
-  Wifi,
-  WifiOff,
-  Trash2
-} from 'lucide-react'
+import { ArrowLeft, Loader, Mic, MicOff, Send, Sparkles, Trash2, User, Wifi, WifiOff } from "reicon-react";
+import { BotIcon } from '@/components/icons/BotIcon'
 import { GlassPanel, Button } from '@/components/ui'
 import { cn } from '@/utils/cn'
 import { useAbelChat } from '@/hooks/useAbelChat'
@@ -77,7 +66,7 @@ export default function Chat() {
 
           <div className="flex items-center gap-3 flex-1">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-cyan to-neon-violet flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white" />
+              <BotIcon className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="font-semibold text-white">A.B.E.L</h1>
@@ -125,7 +114,7 @@ export default function Chat() {
               className="text-center py-12"
             >
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neon-cyan to-neon-violet mx-auto mb-6 flex items-center justify-center">
-                <Bot className="w-10 h-10 text-white" />
+                <BotIcon className="w-10 h-10 text-white" />
               </div>
               <h2 className="text-2xl font-display font-bold text-white mb-2">
                 Bonjour, je suis A.B.E.L
@@ -162,7 +151,7 @@ export default function Chat() {
                   {message.role === 'user' ? (
                     <User className="w-4 h-4" />
                   ) : (
-                    <Bot className="w-4 h-4" />
+                    <BotIcon className="w-4 h-4" />
                   )}
                 </div>
 
@@ -204,11 +193,11 @@ export default function Chat() {
               className="flex gap-3"
             >
               <div className="w-8 h-8 rounded-full bg-neon-cyan/20 text-neon-cyan flex items-center justify-center">
-                <Bot className="w-4 h-4" />
+                <BotIcon className="w-4 h-4" />
               </div>
               <GlassPanel className="p-4" hoverGlow={false}>
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 text-neon-cyan animate-spin" />
+                  <Loader className="w-4 h-4 text-neon-cyan animate-spin" />
                   <span className="text-white/60 text-sm">A.B.E.L réfléchit...</span>
                 </div>
               </GlassPanel>
