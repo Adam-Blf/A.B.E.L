@@ -1,18 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import {
-  ArrowLeft,
-  FileText,
-  Download,
-  ExternalLink,
-  Cpu,
-  Database,
-  Globe,
-  Shield,
-  Code,
-  BookOpen
-} from 'lucide-react'
+import { ArrowLeft, BookOpen, Code, Cpu, Database, Download, FileText, Globe, Shield, SquareShare } from "reicon-react";
 import { GlassPanel, Button, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
 
 export default function System() {
@@ -157,7 +146,7 @@ export default function System() {
                           window.open(`/api/docs/${doc.id}`, '_blank')
                         }}
                       >
-                        <ExternalLink className="w-4 h-4" />
+                        <SquareShare className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

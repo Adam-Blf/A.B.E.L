@@ -1,16 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Palette,
-  Bell,
-  Volume2,
-  Moon,
-  Sun,
-  Save,
-  RotateCcw
-} from 'lucide-react'
+import { ArrowLeft, Bell, Floppy2, Moon, Palette2, RotateLeft, Sun, VolumeHigh } from "reicon-react";
 import { GlassPanel, Button, Card, CardHeader, CardTitle, CardContent } from '@/components/ui'
 import { cn } from '@/utils/cn'
 
@@ -67,10 +58,10 @@ export default function Settings() {
 
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={handleReset}>
-              <RotateCcw className="w-4 h-4" />
+              <RotateLeft className="w-4 h-4" />
             </Button>
             <Button size="sm" onClick={handleSave}>
-              <Save className="w-4 h-4" />
+              <Floppy2 className="w-4 h-4" />
               Sauvegarder
             </Button>
           </div>
@@ -87,7 +78,7 @@ export default function Settings() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-neon-violet/10 text-neon-violet">
-                  <Palette className="w-5 h-5" />
+                  <Palette2 className="w-5 h-5" />
                 </div>
                 <CardTitle>Apparence</CardTitle>
               </div>
@@ -144,7 +135,7 @@ export default function Settings() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-neon-cyan/10 text-neon-cyan">
-                  <Volume2 className="w-5 h-5" />
+                  <VolumeHigh className="w-5 h-5" />
                 </div>
                 <CardTitle>Voix & Audio</CardTitle>
               </div>
